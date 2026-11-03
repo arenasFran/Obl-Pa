@@ -4,6 +4,8 @@ package sistema;
 
 import dominio.Despliegue;
 import dominio.DesplieguePorCodigo;
+import dominio.Enlace;
+import dominio.Region;
 import interfaz.*;
 import tads.ABB;
 import java.util.regex.Pattern;
@@ -16,6 +18,9 @@ public class ImplementacionSistema implements Sistema  {
     private ABB<DesplieguePorCodigo> desplieguesPorCodigo;
     private ABB<DesplieguePorCodigo>[] desplieguesPorModalidad;
     private int maxRegiones;
+    private Region[] regiones;
+    private int cantidadRegiones;
+    private Enlace[][] enlaces;
 
 
     @Override
@@ -27,6 +32,9 @@ public class ImplementacionSistema implements Sistema  {
         this.desplieguesPorId = new ABB<>();
         this.desplieguesPorCodigo = new ABB<>();
         this.desplieguesPorModalidad = crearArbolesPorModalidad();
+        this.regiones = new Region[maxRegiones];
+        this.cantidadRegiones = 0;
+        this.enlaces = new Enlace[maxRegiones][maxRegiones];
         return Retorno.ok();
     }
 
@@ -117,12 +125,57 @@ public class ImplementacionSistema implements Sistema  {
 
     @Override
     public Retorno registrarRegion(String codigo, String nombre, String pais, String zona) {
-        return Retorno.noImplementada();
+        if (cantidadRegiones >= maxRegiones) {
+            return Retorno.error1("Se alcanzó el máximo de regiones");
+        }
+        if (esVacio(codigo) || esVacio(nombre) || esVacio(pais) || esVacio(zona)) {
+            return Retorno.error2("Código, nombre, país y zona son obligatorios");
+        }
+        for (int i = 0; i < cantidadRegiones; i++) {
+            if (regiones[i].getCodigo().equals(codigo)) {
+                return Retorno.error3("Ya existe una región con ese código");
+            }
+        }
+        regiones[cantidadRegiones] = new Region(codigo, nombre, pais, zona);
+        cantidadRegiones++;
+        return Retorno.ok();
     }
 
     @Override
     public Retorno registrarEnlace(String codigoOrigen, String codigoDestino, int latencia, int costo) {
-        return Retorno.noImplementada();
+        if (esVacio(codigoOrigen) || esVacio(codigoDestino)) {
+            return Retorno.error1("Los códigos de origen y destino son obligatorios");
+        }
+        int indiceOrigen = buscarIndiceRegion(codigoOrigen);
+        if (indiceOrigen < 0) {
+            return Retorno.error2("No existe la región de origen");
+        }
+        int indiceDestino = buscarIndiceRegion(codigoDestino);
+        if (indiceDestino < 0) {
+            return Retorno.error3("No existe la región de destino");
+        }
+        if (latencia <= 0) {
+            return Retorno.error4("La latencia debe ser mayor a cero");
+        }
+        if (costo <= 0) {
+            return Retorno.error5("El costo debe ser mayor a cero");
+        }
+        if (enlaces[indiceOrigen][indiceDestino] != null) {
+            return Retorno.error6("Ya existe un enlace entre las regiones");
+        }
+        Enlace enlace = new Enlace(latencia, costo);
+        enlaces[indiceOrigen][indiceDestino] = enlace;
+        enlaces[indiceDestino][indiceOrigen] = enlace;
+        return Retorno.ok();
+    }
+
+    private int buscarIndiceRegion(String codigo) {
+        for (int i = 0; i < cantidadRegiones; i++) {
+            if (regiones[i].getCodigo().equals(codigo)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     @Override
