@@ -180,16 +180,156 @@ public class ImplementacionSistema implements Sistema  {
 
     @Override
     public Retorno redRegionesPorCantidadDeSaltos(String codigoOrigen, int cantidad) {
-        return Retorno.noImplementada();
+        if (cantidad < 0) {
+            return Retorno.error1("La cantidad de saltos no puede ser negativa");
+        }
+        if (esVacio(codigoOrigen)) {
+            return Retorno.error2("El código de origen es obligatorio");
+        }
+        int indiceOrigen = buscarIndiceRegion(codigoOrigen);
+        if (indiceOrigen < 0) {
+            return Retorno.error3("No existe la región de origen");
+        }
+
+        int[] distancias = new int[cantidadRegiones];
+        int[] cola = new int[cantidadRegiones];
+        for (int i = 0; i < cantidadRegiones; i++) {
+            distancias[i] = -1;
+        }
+        int inicioCola = 0;
+        int finCola = 0;
+        cola[finCola++] = indiceOrigen;
+        distancias[indiceOrigen] = 0;
+
+        while (inicioCola < finCola) {
+            int actual = cola[inicioCola++];
+            if (distancias[actual] == cantidad) {
+                continue;
+            }
+            for (int vecino = 0; vecino < cantidadRegiones; vecino++) {
+                if (enlaces[actual][vecino] != null && distancias[vecino] == -1) {
+                    distancias[vecino] = distancias[actual] + 1;
+                    cola[finCola++] = vecino;
+                }
+            }
+        }
+
+        boolean[] agregada = new boolean[cantidadRegiones];
+        StringBuilder resultado = new StringBuilder();
+        int incluidas = 0;
+        for (int i = 0; i < cantidadRegiones; i++) {
+            if (distancias[i] >= 0 && distancias[i] <= cantidad) {
+                incluidas++;
+            }
+        }
+        for (int posicion = 0; posicion < incluidas; posicion++) {
+            int menorIndice = -1;
+            for (int i = 0; i < cantidadRegiones; i++) {
+                if (distancias[i] >= 0 && distancias[i] <= cantidad && !agregada[i]
+                        && (menorIndice == -1 || regiones[i].getCodigo()
+                        .compareTo(regiones[menorIndice].getCodigo()) < 0)) {
+                    menorIndice = i;
+                }
+            }
+            if (posicion > 0) {
+                resultado.append("|");
+            }
+            Region region = regiones[menorIndice];
+            resultado.append(region.getCodigo()).append(";")
+                    .append(region.getNombre()).append(";")
+                    .append(region.getPais()).append(";")
+                    .append(region.getZona());
+            agregada[menorIndice] = true;
+        }
+        return Retorno.ok(resultado.toString());
     }
 
     @Override
     public Retorno rutaMenorLatencia(String codigoOrigen, String codigoDestino) {
-        return Retorno.noImplementada();
+        if (esVacio(codigoOrigen) || esVacio(codigoDestino)) {
+            return Retorno.error1("Los códigos de origen y destino son obligatorios");
+        }
+        int indiceOrigen = buscarIndiceRegion(codigoOrigen);
+        if (indiceOrigen < 0) {
+            return Retorno.error2("No existe la región de origen");
+        }
+        int indiceDestino = buscarIndiceRegion(codigoDestino);
+        if (indiceDestino < 0) {
+            return Retorno.error3("No existe la región de destino");
+        }
+        return calcularRuta(indiceOrigen, indiceDestino, true);
+    }
+
+    private Retorno calcularRuta(int indiceOrigen, int indiceDestino, boolean optimizarLatencia) {
+        long[] distancias = new long[cantidadRegiones];
+        int[] predecesores = new int[cantidadRegiones];
+        boolean[] visitadas = new boolean[cantidadRegiones];
+        for (int i = 0; i < cantidadRegiones; i++) {
+            distancias[i] = Long.MAX_VALUE;
+            predecesores[i] = -1;
+        }
+        distancias[indiceOrigen] = 0;
+
+        for (int paso = 0; paso < cantidadRegiones; paso++) {
+            int actual = -1;
+            for (int i = 0; i < cantidadRegiones; i++) {
+                if (!visitadas[i] && distancias[i] != Long.MAX_VALUE
+                        && (actual == -1 || distancias[i] < distancias[actual])) {
+                    actual = i;
+                }
+            }
+            if (actual == -1 || actual == indiceDestino) {
+                break;
+            }
+            visitadas[actual] = true;
+            for (int vecino = 0; vecino < cantidadRegiones; vecino++) {
+                Enlace enlace = enlaces[actual][vecino];
+                if (enlace != null && !visitadas[vecino]) {
+                    int peso = optimizarLatencia ? enlace.getLatencia() : enlace.getCosto();
+                    long nuevaDistancia = distancias[actual] + peso;
+                    if (nuevaDistancia < distancias[vecino]) {
+                        distancias[vecino] = nuevaDistancia;
+                        predecesores[vecino] = actual;
+                    }
+                }
+            }
+        }
+
+        if (distancias[indiceDestino] == Long.MAX_VALUE) {
+            return Retorno.error4("No existe una ruta entre las regiones");
+        }
+        int[] ruta = new int[cantidadRegiones];
+        int largoRuta = 0;
+        for (int actual = indiceDestino; actual != -1; actual = predecesores[actual]) {
+            ruta[largoRuta++] = actual;
+        }
+        StringBuilder valorString = new StringBuilder();
+        for (int i = largoRuta - 1; i >= 0; i--) {
+            if (valorString.length() > 0) {
+                valorString.append("|");
+            }
+            Region region = regiones[ruta[i]];
+            valorString.append(region.getCodigo()).append(";")
+                    .append(region.getNombre()).append(";")
+                    .append(region.getPais()).append(";")
+                    .append(region.getZona());
+        }
+        return Retorno.ok((int) distancias[indiceDestino], valorString.toString());
     }
 
     @Override
     public Retorno rutaMenorCosto(String codigoOrigen, String codigoDestino) {
-        return Retorno.noImplementada();
+        if (esVacio(codigoOrigen) || esVacio(codigoDestino)) {
+            return Retorno.error1("Los códigos de origen y destino son obligatorios");
+        }
+        int indiceOrigen = buscarIndiceRegion(codigoOrigen);
+        if (indiceOrigen < 0) {
+            return Retorno.error2("No existe la región de origen");
+        }
+        int indiceDestino = buscarIndiceRegion(codigoDestino);
+        if (indiceDestino < 0) {
+            return Retorno.error3("No existe la región de destino");
+        }
+        return calcularRuta(indiceOrigen, indiceDestino, false);
     }
 }
